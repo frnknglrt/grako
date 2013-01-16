@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division, absolute_import, unicode_literals
-import sys
 import re
 import logging
 from copy import deepcopy
@@ -73,6 +72,9 @@ class _Grammar(Renderer):
             self._first_set = self._first(k, {})
         return self._first_set
 
+    def accept(self, visitor):
+        return None
+
     def _validate(self, rules):
         pass
 
@@ -84,6 +86,9 @@ class VoidGrammar(_Grammar):
     def __str__(self):
         return '()'
 
+    def accept(self, visitor):
+        return visitor.visit_void(self)
+
     template = 'pass'
 
 
@@ -92,6 +97,9 @@ class EOFGrammar(_Grammar):
         ctx.buf.eatwhitespace()
         if not ctx.buf.atend():
             raise FailedParse(ctx.buf, '<EOF>')
+
+    def accept(self, visitor):
+        return visitor.visit_eof(self)
 
     def __str__(self):
         return '$'
@@ -124,6 +132,9 @@ class GroupGrammar(_DecoratorGrammar):
     def __str__(self):
         return '(%s)' % str(self.exp).strip()
 
+    def accept(self, visitor):
+        return visitor.visit_group(self)
+
     def render_fields(self, fields):
         fields.update(exp=indent(render(self.exp)))
 
@@ -146,6 +157,9 @@ class TokenGrammar(_Grammar):
         if result is None:
             raise FailedToken(ctx.buf, self.token)
         return result
+
+    def accept(self, visitor):
+        return visitor.visit_token(self)
 
     def _first(self, k, F):
         return set([(self.token,)])
@@ -177,6 +191,9 @@ class PatternGrammar(_Grammar):
             raise FailedPattern(ctx.buf, self.pattern)
         return result
 
+    def accept(self, visitor):
+        return visitor.visit_pattern(self)
+
     def _first(self, k, F):
         return set([(self.pattern,)])
 
@@ -200,6 +217,9 @@ class LookaheadGrammar(_DecoratorGrammar):
         finally:
             ctx.goto(p)
 
+    def accept(self, visitor):
+        return visitor.visit_lookahead(self)
+
     def render_fields(self, fields):
         fields.update(exp=indent(render(self.exp)))
 
@@ -221,6 +241,9 @@ class LookaheadNotGrammar(_DecoratorGrammar):
         except FailedParse:
             ctx.goto(p)
             pass
+
+    def accept(self, visitor):
+        return visitor.visit_lookaheadnot(self)
 
     def render_fields(self, fields):
         fields.update(exp=indent(render(self.exp)))
@@ -247,6 +270,9 @@ class SequenceGrammar(_Grammar):
             tree = s.parse(ctx)
             result.append(tree)
         return [r for r in result if r is not None]
+
+    def accept(self, visitor):
+        return visitor.visit_sequence(self)
 
     def _validate(self, rules):
         for s in self.sequence:
@@ -288,6 +314,9 @@ class ChoiceGrammar(_Grammar):
             except FailedParse as e:
                 items.append(e.item)
         raise FailedParse(ctx.buf, 'one of {%s}' % ','.join(items))
+
+    def accept(self, visitor):
+        return visitor.visit_choice(self)
 
     def _validate(self, rules):
         for o in self.options:
@@ -353,6 +382,9 @@ class RepeatGrammar(_DecoratorGrammar):
         return simplify(result)
 
 
+    def accept(self, visitor):
+        return visitor.visit_repeat(self)
+
     def _first(self, k, F):
         result = {()}
         for _i in range(k):
@@ -379,10 +411,13 @@ class RepeatGrammar(_DecoratorGrammar):
                 '''
 
 
-class RepeatOneGrammar(RepeatGrammar):
+class RepeatPlusGrammar(RepeatGrammar):
     def parse(self, ctx):
         head = self.exp.parse(ctx)
-        return simplify([head] + super(RepeatOneGrammar, self).parse(ctx))
+        return simplify([head] + super(RepeatPlusGrammar, self).parse(ctx))
+
+    def accept(self, visitor):
+        return visitor.visit_repeatplus(self)
 
     def _first(self, k, F):
         result = {()}
@@ -417,6 +452,9 @@ class OptionalGrammar(_DecoratorGrammar):
             ctx.goto(p)
             return None
 
+    def accept(self, visitor):
+        return visitor.visit_optional(self)
+
     def _first(self, k, F):
         return {()} | self.exp._first(k, F)
 
@@ -436,6 +474,9 @@ class OptionalGrammar(_DecoratorGrammar):
 class CutGrammar(_Grammar):
     def parse(self, ctx):
         return None
+
+    def accept(self, visitor):
+        return visitor.visit_cut(self)
 
     def _first(self, k, F):
         return {('>>',)}
@@ -457,6 +498,9 @@ class NamedGrammar(_DecoratorGrammar):
         value = self.exp.parse(ctx)
         ctx.add_ast_node(self.name, value, self.force_list)
         return value
+
+    def accept(self, visitor):
+        return visitor.named(self)
 
     def __str__(self):
         if self.force_list:
@@ -480,11 +524,16 @@ class SpecialGrammar(_Grammar):
         super(SpecialGrammar, self).__init__()
         self.special = special
 
+    def accept(self, visitor):
+        return visitor.visit_special(self)
+
     def _first(self, k, F):
         return set([(self.special,)])
 
     def __str__(self):
         return '?/%s/?' % self.pattern
+
+    template = '# {special}'
 
 
 class RuleRefGrammar(_Grammar):
@@ -504,6 +553,9 @@ class RuleRefGrammar(_Grammar):
             raise FailedRef(ctx.buf, self.name)
         except FailedParse:
             raise
+
+    def accept(self, visitor):
+        return visitor.visit_ruleref(self)
 
     def _validate(self, rules):
         if self.name not in rules:
@@ -547,6 +599,9 @@ class RuleGrammar(NamedGrammar):
             ctx.pop_ast()
             ctx._rule_stack.pop()
 
+    def accept(self, visitor):
+        return visitor.visit_rule(self)
+
     @memoize
     def _invoke_rule(self, name, ctx, pos):
         ctx.goto(pos)
@@ -587,14 +642,17 @@ class Grammar(Renderer):
         self._validate()
         self._first_sets = self._calc_first_sets()
 
+    @property
+    def first_sets(self):
+        return self._first_sets
+
+    def accept(self, visitor):
+        return visitor.visit_grammar(self)
+
     def _validate(self):
         ruledict = {r.name for r in self.rules}
         for rule in self.rules:
             rule._validate(ruledict)
-
-    @property
-    def first_sets(self):
-        return self._first_sets
 
     def _calc_first_sets(self, k=1):
         F = dict()
@@ -666,3 +724,82 @@ class Grammar(Renderer):
                 {abstract_rules}
 
                 '''
+
+class GrammarVisitor(object):
+
+    def __init__(self, delegate=None):
+        super(GrammarVisitor, self).__init__()
+        self.delegate = delegate
+
+    def _delegate(self, name, *args, **kwargs):
+        if not self.delegate:
+            return None
+        method = self._find_delegate('visit_' + name)
+        if method is not None:
+            return method(*args, **kwargs)
+
+    def _find_delegate(self, name):
+        method = getattr(self.delegate, name, None)
+        if method and isinstance(method, type(self._find_delegate)):
+            return method
+        return method
+
+    def _visit_decorator(self, name, decorator):
+        vexp = decorator.exp.accept(self)
+        return self._delegate(name, decorator, vexp)
+
+    def visit(self, grammar):
+        return grammar.accept(self)
+
+    def visit_grammar(self, grammar):
+        vrules = [rule.accept(self) for rule in grammar.rules]
+        return self._delegate('grammar', grammar, vrules)
+
+    def visit_rule(self, rule):
+        return self._visit_decorator('rule', rule)
+
+    def visit_ruleref(self, ruleref):
+        return self._delegate('ruleref', ruleref)
+
+    def visit_named(self, named):
+        return self._visit_decorator('named', named)
+
+    def visit_group(self, group):
+        return self._visit_decorator('group', group)
+
+    def visit_choice(self, choice):
+        return self._visit_decorator('choice', choice)
+
+    def visit_sequence(self, sequence):
+        vseq = [s.accept(self) for s in sequence.sechence]
+        return self._delegate('sequence', sequence, vseq)
+
+    def visit_optional(self, optional):
+        return self._visit_decorator('optional', optional)
+
+    def visit_repeat(self, repeat):
+        return self._visit_decorator('repeat', repeat)
+
+    def visit_repeatplus(self, repeatplus):
+        return self._visit_decorator('repeatplus', repeatplus)
+
+    def visit_lookahead(self, lookahead):
+        return self._visit_decorator('lookahead', lookahead)
+
+    def visit_lookaheadnot(self, lookaheadnot):
+        return self._visit_decorator('lookaheadnot', lookaheadnot)
+
+    def visit_token(self, token):
+        return self._delegate('token', token)
+
+    def visit_pattern(self, pattern):
+        return self._delegate('token', pattern)
+
+    def visit_void(self, void):
+        return self._delegate('void', void)
+
+    def visit_cut(self, cut):
+        return self._delegate('cut', cut)
+
+    def visit_eof(self, eof):
+        return self._delegate('eof', eof)
