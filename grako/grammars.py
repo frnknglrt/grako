@@ -647,7 +647,8 @@ class Grammar(Renderer):
         return self._first_sets
 
     def accept(self, visitor):
-        return visitor.visit_grammar(self)
+        driver = _GrammarVisitorDriver(visitor)
+        driver.visit(self)
 
     def _validate(self):
         ruledict = {r.name for r in self.rules}
@@ -725,11 +726,11 @@ class Grammar(Renderer):
 
                 '''
 
-class GrammarVisitor(object):
+class _GrammarVisitorDriver(object):
 
-    def __init__(self, delegate=None):
-        super(GrammarVisitor, self).__init__()
-        self.delegate = delegate
+    def __init__(self, visitor):
+        super(_GrammarVisitorDriver, self).__init__()
+        self.delegate = visitor
 
     def _delegate(self, name, *args, **kwargs):
         if not self.delegate:
@@ -803,3 +804,58 @@ class GrammarVisitor(object):
 
     def visit_eof(self, eof):
         return self._delegate('eof', eof)
+
+
+class AbstractGrammarVisitor(object):
+    def visit_grammar(self, grammar, vrules):
+        pass
+
+    def visit_rule(self, rule, vexp):
+        pass
+
+    def visit_ruleref(self, ruleref):
+        pass
+
+    def visit_named(self, named, vexp):
+        pass
+
+    def visit_group(self, group, vexp):
+        pass
+
+    def visit_choice(self, choice, vexp):
+        pass
+
+    def visit_sequence(self, sequence, vseq):
+        pass
+
+    def visit_optional(self, optional, vexp):
+        pass
+
+    def visit_repeat(self, repeat, vexp):
+        pass
+
+    def visit_repeatplus(self, repeatplus, vexp):
+        pass
+
+    def visit_lookahead(self, lookahead, vexp):
+        pass
+
+    def visit_lookaheadnot(self, lookaheadnot, vexp):
+        pass
+
+    def visit_token(self, token):
+        pass
+
+    def visit_pattern(self, pattern):
+        pass
+
+    def visit_void(self, void):
+        pass
+
+    def visit_cut(self, cut):
+        pass
+
+    def visit_eof(self, eof):
+        pass
+
+
