@@ -382,7 +382,7 @@ class GrakoGrammarGenerator(AbstractGrakoParser):
 
     def repeat(self, ast):
         if 'plus' in ast:
-            return RepeatOneGrammar(ast.repeat)
+            return RepeatPlusGrammar(ast.repeat)
         return RepeatGrammar(ast.repeat)
 
     def special(self, ast):
