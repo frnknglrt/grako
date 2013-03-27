@@ -12,7 +12,7 @@ class CountBoundedDict(collections.OrderedDict):
     def __getitem__(self, key):
         self.counts[key] += self.threshold
         value = super(CountBoundedDict, self).__getitem__(key)
-        super(CountBoundedDict, self).__setitem__(key, value)
+        super(CountBoundedDict, self).__setitem__(key, value)  # move it to last
         return value
 
     def __setitem__(self, key, value):
@@ -24,6 +24,5 @@ class CountBoundedDict(collections.OrderedDict):
             if value < t:
                 del self[key]
                 del self.counts[key]
-                return
             else:
                 self.counts[key] = value
