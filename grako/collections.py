@@ -10,7 +10,7 @@ class CountBoundedDict(collections.OrderedDict):
         super(CountBoundedDict, self).__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        self.counts[key] += self.threshold
+        self.counts[key] += 1
         value = super(CountBoundedDict, self).__getitem__(key)
         super(CountBoundedDict, self).__setitem__(key, value)  # move it to last
         return value
