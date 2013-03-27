@@ -48,7 +48,7 @@ class Parser(ParseContext):
             self._push_ast()
             return self._call(rule_name, rule_name)
         finally:
-            self._memoization_cache = dict()
+            self._memoization_cache = None
 
     @classmethod
     def rule_list(cls):

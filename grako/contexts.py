@@ -4,6 +4,7 @@ import sys
 import re
 from contextlib import contextmanager
 from collections import namedtuple
+from .collections import CountBoundedDict
 from .ast import AST
 from .exceptions import FailedParse, FailedCut, FailedLookahead
 from . import buffering
@@ -48,7 +49,7 @@ class ParseContext(object):
         self._concrete_stack = [None]
         self._rule_stack = []
         self._cut_stack = [False]
-        self._memoization_cache = dict()
+        self._memoization_cache = CountBoundedDict()
 
     def goto(self, pos):
         self._buffer.goto(pos)
