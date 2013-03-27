@@ -5,7 +5,7 @@ import collections
 
 class CountBoundedDict(collections.OrderedDict):
     def __init__(self, *args, **kwargs):
-        self.threshold = kwargs.pop('threshold', 1)
+        self.threshold = kwargs.pop('threshold', 7)
         self.counts = collections.Counter()
         super(CountBoundedDict, self).__init__(*args, **kwargs)
 
@@ -24,5 +24,6 @@ class CountBoundedDict(collections.OrderedDict):
             if value < t:
                 del self[key]
                 del self.counts[key]
+                return  # delete only one!
             else:
                 self.counts[key] = value
