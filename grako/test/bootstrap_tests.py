@@ -61,15 +61,30 @@ def main():
 
     print('-' * 20, 'phase 7 - import generated code')
     from gencode6 import GrakoParserBase as GenParser  # @UnresolvedImport
+
     print('-' * 20, 'phase 8 - compile using generated code')
     parser = GenParser(trace=False)
     result = parser.parse(text, 'grammar')
     assert result == parser.ast['grammar']
-    ast8 = parser.ast['grammar']
-    json8 = json.dumps(ast8, indent=2)
-    open('tmp/8.ast', 'w').write(json8)
-    assert ast5 == ast8
+
+    print('-' * 20, 'phase 9 - verify the AST from the generated code')
+    ast9 = parser.ast['grammar']
+    json9 = json.dumps(ast9, indent=2)
+    open('tmp/9.ast', 'w').write(json9)
+    assert ast5 == ast9
 #    assert json8 == open('etc/check.js').read()
+
+    print('-' * 20, 'phase 10 - Generate parser with delegate')
+    text = open('etc/grako.ebnf').read()
+    delegate = GrakoGrammarGenerator('Grako')
+    g10 = delegate.parse(text)
+    generated_grammar10 = str(g10)
+    open('tmp/10.ebnf', 'w').write(generated_grammar10)
+    assert generated_grammar10 == generated_grammar1
+
+    print('-' * 20, 'phase 11 - Parse with a model using a delegate')
+    print('-' * 24, 'THIS DOESN NOT WORK')
+    g10.parse(text, delegate=delegate, comments_re=delegate.comments_re)
 
 
 if __name__ == '__main__':
