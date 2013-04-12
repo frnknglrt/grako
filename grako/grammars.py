@@ -42,11 +42,12 @@ def urepr(obj):
 
 
 class ModelContext(ParseContext):
-    def __init__(self, rules, text, filename, trace, **kwargs):
+    def __init__(self, rules, text, filename, delegate=None, trace=False, **kwargs):
         super(ModelContext, self).__init__(trace=trace, **kwargs)
         self.rules = {rule.name: rule for rule in rules}
         self._buffer = Buffer(text, filename=filename)
         self._buffer.goto(0)
+        self.delegate = delegate
 
     @property
     def pos(self):
@@ -58,6 +59,14 @@ class ModelContext(ParseContext):
 
     def _find_rule(self, name):
         return self.rules[name]
+
+    def _find_semantic_rule(self, name):
+        if self.delegate is None:
+            return None
+        result = getattr(self.delegate, name, None)
+        if not isinstance(result, type(self._find_rule)):
+            return None
+        return result
 
 
 class _Grammar(Renderer):
@@ -549,8 +558,9 @@ class RuleGrammar(NamedGrammar):
                 node = node['@']
             elif ctx.parseinfo:
                 node.add('parseinfo', ParseInfo(ctx._buffer, name, pos, ctx._pos))
-#            if self.ast_name:
-#                node = AST([(self.ast_name, node)])
+            semantic_rule = ctx._find_semantic_rule(name)
+            if semantic_rule:
+                node = semantic_rule(node)
         finally:
             ctx._pop_ast()
         result = (node, ctx.pos)
@@ -615,8 +625,21 @@ class Grammar(Renderer):
             rule._first_set = F[rule.name]
         return F
 
-    def parse(self, text, start=None, filename=None, trace=False, **kwargs):
-        ctx = ModelContext(self.rules, text, filename, trace=trace, **kwargs)
+    def parse(self,
+              text,
+              start=None,
+              filename=None,
+              delegate=None,
+              comments_re=None,
+              trace=False,
+              **kwargs):
+        ctx = ModelContext(self.rules,
+                           text,
+                           filename,
+                           delegate=delegate,
+                           comments_re=comments_re,
+                           trace=trace,
+                           **kwargs)
         start_rule = ctx._find_rule(start) if start else self.rules[0]
         with ctx._choice():
             return start_rule.parse(ctx)
