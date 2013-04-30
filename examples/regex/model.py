@@ -2,6 +2,7 @@
 from __future__ import print_function, division, absolute_import, unicode_literals
 from grako.rendering import Renderer
 
+
 class Model(Renderer):
     def __init__(self):
         self.n = None
@@ -18,24 +19,24 @@ class Model(Renderer):
 
         '''
 
-class Regexp(Model):
+
+class Regex(Model):
     def __init__(self, exp):
-        super(Regexp, self).__init__()
+        super(Regex, self).__init__()
         self.exp = exp
 
     def _set_rule_numbers(self, s):
-        s = super(Regexp, self)._set_rule_numbers(s)
+        s = super(Regex, self)._set_rule_numbers(s)
         return self.exp._set_rule_numbers(s)
 
     def render_fields(self, fields):
-        fields.update(startn='S%d' % self.exp.n)
+        fields.update(startn=self.exp.n)
 
     template = '''\
-        S{n} = {startn} $ .
+        S{n} = S{startn} $ .
 
         {exp}
         '''
-
 
 
 class Choice(Model):
@@ -50,10 +51,10 @@ class Choice(Model):
         return s
 
     def render_fields(self, fields):
-        fields.update(exp=' | '.join('S%d' % o.n for o in self.options))
+        fields.update(exp=[o.n for o in self.options])
 
     template = '''\
-        S{n} = {exp} .
+        S{n} = {exp:: |  :S%s} .
 
         {options}
 
@@ -72,10 +73,10 @@ class Sequence(Model):
         return s
 
     def render_fields(self, fields):
-        fields.update(exp=' '.join('S%d' % t.n for t in self.terms))
+        fields.update(exp=[t.n for t in self.terms])
 
     template = '''\
-        S{n} = {exp} .
+        S{n} = {exp:: :S%s} .
 
         {terms}
 
@@ -101,6 +102,7 @@ class Closure(Model):
 
             '''
 
+
 class Literal(Model):
     def __init__(self, exp):
         super(Literal, self).__init__()
@@ -120,4 +122,3 @@ class Empty(Model):
             S{n} = () .
 
             '''
-
