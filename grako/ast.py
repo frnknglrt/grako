@@ -5,49 +5,73 @@ to store the values of named elements of grammar rules.
 """
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-__all__ = ['AST']
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
 
 
-class AST(dict):
-    """
-    A dictionary with attribute-style access. It maps attribute access to
-    the real dictionary.
-    """
-    # ActiveState Recipe:
-    # http://code.activestate.com/recipes/473786-dictionary-with-attribute-style-access/
+class AST(MutableMapping):
 
-    def __getstate__(self):
-        return self.__dict__.items()
+    def __init__(self, *args, **kwargs):
+        super(AST, self).__init__()
+        base = dict(*args, **kwargs)
+        super(AST, self).__setattr__('_base', base)
+        super(AST, self).__setattr__('_order', [])
 
-    def __setstate__(self, items):
-        for key, val in items:
-            self.__dict__[key] = val
+    @property
+    def parseinfo(self):
+        """ Make the special attribute `_parseinfo` be available
+            as a property without an underscore in the name.
+            This patch helps with backwards compatibility.
+        """
+        return self._parseinfo
 
-    def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, super(AST, self).__repr__())
+    def __contains__(self, key):
+        return key in self._base
 
     def __setitem__(self, key, value):
         self._add(key, value)
 
     def __getitem__(self, key):
-        if self.__contains__(key):
-            return super(AST, self).__getitem__(key)
+        return self._base.get(key, None)
 
-    __getattr__ = __getitem__
+    def __delitem__(self, key):
+        del self._base[key]
+
+    def __iter__(self):
+        base = self._base
+        return (key for key in self._order if key in base)
+
+    def __len__(self):
+        return len(self._base)
+
+    def __getattr(self, name):
+        base = super(AST, self).__getattribute__('_base')
+        if name == '_base':
+            return base
+        if name in base:
+            return base[name]
+
     __setattr__ = __setitem__
 
     def __getattribute__(self, name):
-        if name in self:
-            return self[name]
-        return super(AST, self).__getattribute__(name)
+        try:
+            return super(AST, self).__getattribute__(name)
+        except AttributeError:
+            base = super(AST, self).__getattribute__('_base')
+            if name == '_base':
+                return base
+            if name in base:
+                return base[name]
 
     def _define(self, keys, list_keys=None):
         for key in list_keys or []:
-            if not self.__contains__(key):
-                super(AST, self).__setitem__(key, [])
+            if key not in self._base:
+                self._base[key] = []
         for key in keys:
-            if not self.__contains__(key):
-                super(AST, self).__setitem__(key, None)
+            if key not in self._base:
+                self._base[key] = None
 
     def _copy(self):
         haslists = any(isinstance(v, list) for v in self.values())
@@ -59,25 +83,24 @@ class AST(dict):
         )
 
     def _add(self, key, value, force_list=False):
-        previous = self.get(key, None)
+        previous = self._base.get(key, None)
         if previous is None:
             if force_list:
-                super(AST, self).__setitem__(key, [value])
+                self._base[key] = [value]
             else:
-                super(AST, self).__setitem__(key, value)
+                self._base[key] = value
+            self._order.append(key)
         elif isinstance(previous, list):
             previous.append(value)
         else:
-            super(AST, self).__setitem__(key, [previous, value])
+            self._base[key] = [previous, value]
         return self
 
     def _append(self, key, value):
         return self._add(key, value, force_list=True)
 
-    @property
-    def parseinfo(self):
-        """ Make the special attribute `_parseinfo` be available
-            as a property without an underscore in the name.
-            This patch helps with backwards compatibility.
-        """
-        return self._parseinfo
+    def __json__(self):
+        return self._base
+
+    def __repr__(self):
+        return "%s(%s)" % (self.__class__.__name__, super(AST, self).__repr__())
