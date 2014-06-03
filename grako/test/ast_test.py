@@ -25,9 +25,11 @@ class ASTTests(unittest.TestCase):
 
         ast.name = 'world'
         self.assertEqual(['hello', 'world'], ast.name)
+        self.assertEqual(['hello', 'world'], ast['name'])
 
         ast.value = 1
         self.assertEqual(1, ast.value)
+        print(AST)
 
     def test_iter(self):
         ast = AST()

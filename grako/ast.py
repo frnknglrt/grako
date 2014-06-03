@@ -5,6 +5,7 @@ to store the values of named elements of grammar rules.
 """
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from .util import asjson
 try:
     from collections.abc import MutableMapping
 except ImportError:
@@ -27,6 +28,18 @@ class AST(MutableMapping):
         """
         return self._parseinfo
 
+    def keys(self):
+        return self._base.keys()
+
+    def items(self):
+        return self._base.items()
+
+    def values(self):
+        return self._base.values()
+
+    def json(self):
+        return asjson(self)
+
     def __contains__(self, key):
         return key in self._base
 
@@ -46,13 +59,6 @@ class AST(MutableMapping):
     def __len__(self):
         return len(self._base)
 
-    def __getattr(self, name):
-        base = super(AST, self).__getattribute__('_base')
-        if name == '_base':
-            return base
-        if name in base:
-            return base[name]
-
     __setattr__ = __setitem__
 
     def __getattribute__(self, name):
@@ -62,8 +68,10 @@ class AST(MutableMapping):
             base = super(AST, self).__getattribute__('_base')
             if name == '_base':
                 return base
-            if name in base:
-                return base[name]
+            value = getattr(base, name, None)
+            if value is not None:
+                return value
+            return base.get(name)
 
     def _define(self, keys, list_keys=None):
         for key in list_keys or []:
@@ -83,6 +91,9 @@ class AST(MutableMapping):
         )
 
     def _add(self, key, value, force_list=False):
+        if hasattr(self._base, key):
+            key = '_' + key
+
         previous = self._base.get(key, None)
         if previous is None:
             if force_list:
@@ -100,7 +111,10 @@ class AST(MutableMapping):
         return self._add(key, value, force_list=True)
 
     def __json__(self):
-        return self._base
+        return asjson(self._base)
+
+    def __str__(self):
+        return str(self._base)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, super(AST, self).__repr__())
+        return repr(self._base)
