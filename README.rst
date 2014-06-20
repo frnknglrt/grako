@@ -532,6 +532,11 @@ The following must be mentioned as contributors of thoughts, ideas, code, *and f
 Changes
 =======
 
+2.4.4
+-----
+
+    * *BUG* Errors did not always produce a non-zero exit code.
+
 2.4.3
 -----
     * *BUG* `Buffer` was not actually catching regexps. Discovered by Yogi_B_.
