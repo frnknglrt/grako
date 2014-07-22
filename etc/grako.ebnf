@@ -1,4 +1,3 @@
-(* The language for Grako grammars *)
 grammar(Grammar)
     =
     rules:{rule}+ $
@@ -29,7 +28,6 @@ rule(Rule)
     '='
     ~
     rhs:expre
-    (* this is in case the rule is a choice *)
     ';'
     ~
     ;
