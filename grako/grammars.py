@@ -486,12 +486,14 @@ class RuleInclude(_Decorator):
 
 
 class Rule(_Decorator):
-    def __init__(self, name, exp, params, kwparams):
+    def __init__(self, name, exp, params, kwparams, prologue, epilogue):
         assert kwparams is None or isinstance(kwparams, Mapping), kwparams
         super(Rule, self).__init__(exp)
         self.name = name
         self.params = params
         self.kwparams = kwparams
+        self.prologue = prologue
+        self.epilogue = epilogue
         self._adopt_children([params, kwparams])
 
         self.base = None
@@ -547,28 +549,35 @@ class Rule(_Decorator):
 
         base = ' < %s' % ustr(self.base.name) if self.base else ''
 
+        prologue = '\n'.join(ustr(c) for c in self.prologue) + '\n' if self.prologue else ''
+        epilogue = '\n' + '\n'.join(ustr(c) for c in self.epilogue) if self.epilogue else ''
+
         return trim(self.str_template).format(
             name=self.name,
             base=base,
             params=params,
             exp=indent(str(self.exp)),
+            prologue=prologue,
+            epilogue=indent(epilogue)
         )
 
     str_template = '''\
-                {name}{base}{params}
+                {prologue}{name}{base}{params}
                     =
-                {exp}
+                {exp}{epilogue}
                     ;
                 '''
 
 
 class BasedRule(Rule):
-    def __init__(self, name, exp, base, params, kwparams):
+    def __init__(self, name, exp, base, params, kwparams, prologue, epilogue):
         super(BasedRule, self).__init__(
             name,
             exp,
             params or base.params,
-            kwparams or base.kwparams
+            kwparams or base.kwparams,
+            prologue,
+            epilogue
         )
         self.base = base
         self.rhs = Sequence([self.base.exp, self.exp])
@@ -581,13 +590,14 @@ class BasedRule(Rule):
 
 
 class Grammar(Model):
-    def __init__(self, name, rules, whitespace=None, nameguard=None):
+    def __init__(self, name, rules, epilogue, whitespace=None, nameguard=None):
         super(Grammar, self).__init__()
         assert isinstance(rules, list), str(rules)
         self.name = name
         self.whitespace = whitespace
         self.nameguard = nameguard
         self.rules = rules
+        self.epilogue = epilogue
         self._adopt_children(rules)
         if not self._validate({r.name for r in self.rules}):
             raise GrammarError('Unknown rules, no parser generated.')
@@ -647,7 +657,8 @@ class Grammar(Model):
         )
 
     def __str__(self):
+        epilogue = '\n' + '\n'.join(ustr(c) for c in self.epilogue) if self.epilogue else ''
         return (
             '\n\n'.join(ustr(rule)
                         for rule in self.rules)
-        ).rstrip() + '\n'
+        ).rstrip() + '\n' + epilogue

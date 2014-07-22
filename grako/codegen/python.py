@@ -56,7 +56,7 @@ class Fail(Base):
 
 class Comment(Base):
     def render_fields(self, fields):
-        lines = '\n'.join(
+        lines =  '\n'.join(
             '# %s' % ustr(c) for c in self.node.comment.splitlines()
         )
         fields.update(lines=lines)
@@ -311,12 +311,23 @@ class Rule(_Decorator):
                                                 )
                                   )
 
-        fields.update(defines=sdefines)
+        prologue = epilogue = ''
+        if self.node.prologue:
+            prologue='\n'.join(self.rend(c) for c in self.node.prologue),
+        if self.node.epilogue:
+            epilogue='\n'.join(self.rend(c) for c in self.node.epilogue),
+
+        fields.update(
+            defines=sdefines,
+            prologue=prologue,
+            epilogue=epilogue,
+        )
 
     template = '''
+                {prologue}
                 @graken({params})
                 def _{name}_(self):
-                {exp:1::}{defines}
+                {exp:1::}{defines}{epilogue}
                 '''
 
 
@@ -456,5 +467,5 @@ class Grammar(Base):
                         args.startrule,
                         trace=args.trace,
                         whitespace=args.whitespace
-                    )
+                    ){epilogue}
                     '''
