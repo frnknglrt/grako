@@ -35,6 +35,8 @@ ParseInfo = namedtuple(
     ]
 )
 
+ForkPoint = namedtuple('ForkPoint', ['pos', 'cut_seen'])
+
 
 # decorator for rule implementation methods
 def graken(*params, **kwparams):
@@ -89,7 +91,7 @@ class ParseContext(object):
         self._ast_stack = [AST()]
         self._concrete_stack = [None]
         self._rule_stack = []
-        self._cut_stack = [False]
+        self._cut_stack = [ForkPoint(0, False)]
         self._memoization_cache = dict()
 
         self._last_node = None
@@ -139,7 +141,7 @@ class ParseContext(object):
         self._ast_stack = [AST()]
         self._concrete_stack = [None]
         self._rule_stack = []
-        self._cut_stack = [False]
+        self._cut_stack = [ForkPoint(0, False)]
         self._memoization_cache = dict()
 
         self._last_node = None
@@ -267,11 +269,12 @@ class ParseContext(object):
         else:
             return node
 
-    def _is_cut_set(self):
-        return self._cut_stack[-1]
+    def _cut_seen(self):
+        return self._cut_stack[-1].cut_seen
 
     def _cut(self):
-        self._cut_stack[-1] = True
+        fork = self._cut_stack[-1]
+        self._cut_stack[-1] = ForkPoint(fork.pos, True)
 
         # Kota Mizushima et al say that we can throw away
         # memos for previous positions in the buffer under
@@ -283,16 +286,17 @@ class ParseContext(object):
         # positions less than the current cut position. It remains to
         # be proven if doing it this way affects linearity. Empirically,
         # it hasn't.
+        forkpos = fork.pos
         cutpos = self._pos
 
         def prune_cache(cache):
-            prune_dict(cache, lambda k, _: k[0] < cutpos)
+            prune_dict(cache, lambda k, _: forkpos < k[0] < cutpos)
 
         prune_cache(self._memoization_cache)
         prune_cache(self._recursive_results)
 
     def _push_cut(self):
-        self._cut_stack.append(False)
+        self._cut_stack.append(ForkPoint(self._pos, False))
 
     def _pop_cut(self):
         return self._cut_stack.pop()
@@ -579,7 +583,7 @@ class ParseContext(object):
         except FailedCut:
             raise
         except FailedParse as e:
-            if self._is_cut_set():
+            if self._cut_seen():
                 raise FailedCut(e)
         finally:
             self._pop_cut()
@@ -647,7 +651,7 @@ class ParseContext(object):
             except FailedCut:
                 raise
             except FailedParse as e:
-                if self._is_cut_set():
+                if self._cut_seen():
                     raise FailedCut(e)
                 break
             finally:
