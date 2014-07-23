@@ -90,7 +90,7 @@ class ParseContext(object):
         self._concrete_stack = [None]
         self._rule_stack = []
         self._cut_stack = [False]
-        self._memoization_cache = dict()
+        self._memoization_cache = [dict()]
 
         self._last_node = None
         self._state = None
@@ -140,7 +140,7 @@ class ParseContext(object):
         self._concrete_stack = [None]
         self._rule_stack = []
         self._cut_stack = [False]
-        self._memoization_cache = dict()
+        self._memoization_cache = [dict()]
 
         self._last_node = None
         self._state = None
@@ -193,7 +193,7 @@ class ParseContext(object):
         return self._buffer.pos
 
     def _clear_cache(self):
-        self._memoization_cache = dict()
+        self._memoization_cache = [dict()]
         self._recursive_results = dict()
 
     def _goto(self, pos):
@@ -288,13 +288,15 @@ class ParseContext(object):
         def prune_cache(cache):
             prune_dict(cache, lambda k, _: k[0] < cutpos)
 
-        prune_cache(self._memoization_cache)
+        prune_cache(self._memoization_cache[-1])
         prune_cache(self._recursive_results)
 
     def _push_cut(self):
+        self._memoization_cache.append(dict())
         self._cut_stack.append(False)
 
     def _pop_cut(self):
+        self._memoization_cache.pop()
         return self._cut_stack.pop()
 
     def _enter_lookahead(self):
@@ -398,7 +400,7 @@ class ParseContext(object):
             self._rule_stack.pop()
 
     def _invoke_rule(self, rule, name, params, kwparams):
-        cache = self._memoization_cache
+        cache = self._memoization_cache[-1]
         pos = self._pos
 
         key = (pos, rule, self._state)
@@ -408,7 +410,7 @@ class ParseContext(object):
                 raise memo
             return memo
 
-        self._set_left_recursion_guard(name, key)
+        self._set_left_recursion_guard(cache, name, key)
         self._push_ast()
         try:
             if name[0].islower():
@@ -443,7 +445,7 @@ class ParseContext(object):
         finally:
             self._pop_ast()
 
-    def _set_left_recursion_guard(self, name, key):
+    def _set_left_recursion_guard(self, cache, name, key):
         # Alessandro Warth et al say that we can deal with
         # direct and indirect left-recursion by seeding the
         # memoization cache with a parse failure.
@@ -451,7 +453,7 @@ class ParseContext(object):
         #   http://www.vpri.org/pdf/tr2007002_packrat.pdf
         #
         if self._memoization():
-            self._memoization_cache[key] = FailedLeftRecursion(
+            cache[key] = FailedLeftRecursion(
                 self._buffer,
                 list(reversed(self._rule_stack[:])),
                 name
@@ -480,7 +482,7 @@ class ParseContext(object):
 
         # If the current name is in the head, then we've just
         # unwound to the highest rule in the recursion
-        cache = self._memoization_cache
+        cache = self._memoization_cache[-1]
         last_pos = pos
         if ([name] == self._recursive_head[-1:]
         and self._recursive_head[-1:] != self._recursive_eval[-1:]):
